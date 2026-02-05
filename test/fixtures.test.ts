@@ -30,3 +30,13 @@ test('looksLikeBolt11: rejects bech32-encoded ln* strings that are too short', (
   assert.equal(r.ok, false);
   assert.match((r as any).error, /too short/);
 });
+
+test('looksLikeBolt11: rejects invoices with no tagged fields (timestamp+sig only)', () => {
+  // 7 words timestamp + 104 words signature, but no tagged fields in between.
+  const words = new Array(7 + 104).fill(0);
+  const synthetic = bech32.encode('lnbc', words, 2000);
+
+  const r = looksLikeBolt11(synthetic);
+  assert.equal(r.ok, false);
+  assert.match((r as any).error, /tagged fields/);
+});

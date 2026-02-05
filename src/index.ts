@@ -59,5 +59,13 @@ export function looksLikeBolt11(invoice: string): { ok: true; hrp: string } | { 
     return { ok: false, error: `data part too short for BOLT11 (words=${dec.words.length}, min=${minWords})` };
   }
 
+  // There should be at least *some* tagged field data between the timestamp and the signature.
+  // In practice, real invoices always include required tags (e.g., payment_hash), so this is a safe
+  // extra sanity check to reject synthetic ln* bech32 strings that only have a timestamp+sig.
+  const tagWords = dec.words.length - 7 - 104;
+  if (tagWords <= 0) {
+    return { ok: false, error: `missing tagged fields (words=${dec.words.length})` };
+  }
+
   return { ok: true, hrp };
 }
