@@ -13,15 +13,24 @@ export function decodeBech32(s: string): DecodeResult {
   }
 }
 
-export function looksLikeBolt11(invoice: string): { ok: true; hrp: string } | { ok: false; error: string } {
-  const dec = decodeBech32(invoice);
-  if (!dec.ok) return { ok: false, error: `bech32 decode failed: ${dec.error}` };
+export type Bolt11Network = 'mainnet' | 'testnet' | 'regtest' | 'signet';
 
-  const hrp = dec.hrp.toLowerCase();
+export type ParseBolt11HrpResult =
+  | {
+      ok: true;
+      hrp: string;
+      network: Bolt11Network;
+      currency: 'bc' | 'tb' | 'bcrt' | 'tbs';
+      amountDigits?: string;
+      multiplier?: 'm' | 'u' | 'n' | 'p';
+    }
+  | { ok: false; error: string };
+
+export function parseBolt11Hrp(hrpInput: string): ParseBolt11HrpResult {
+  const hrp = String(hrpInput).toLowerCase();
 
   // BOLT11 HRP is: ln + currency-prefix + optional amount.
   // Common currency prefixes: bc (mainnet), tb (testnet), bcrt (regtest), tbs (signet).
-  // We keep this strict enough to reject unrelated bech32 strings.
   //
   // HRP grammar (simplified):
   //   ln + <currency> + [<amountDigits> [<multiplier>]]
@@ -29,8 +38,9 @@ export function looksLikeBolt11(invoice: string): { ok: true; hrp: string } | { 
   const m = /^ln(bc|tb|bcrt|tbs)(\d+)?([munp])?$/.exec(hrp);
   if (!m) return { ok: false, error: `unexpected hrp for BOLT11 (hrp=${hrp})` };
 
+  const currency = m[1] as 'bc' | 'tb' | 'bcrt' | 'tbs';
   const amountDigits = m[2];
-  const multiplier = m[3];
+  const multiplier = m[3] as 'm' | 'u' | 'n' | 'p' | undefined;
 
   // Multiplier without an amount is invalid (e.g. lnbcu).
   if (multiplier && !amountDigits) {
@@ -47,6 +57,26 @@ export function looksLikeBolt11(invoice: string): { ok: true; hrp: string } | { 
       return { ok: false, error: `unexpected hrp for BOLT11 (zero amount, hrp=${hrp})` };
     }
   }
+
+  const network: Bolt11Network =
+    currency === 'bc' ? 'mainnet' : currency === 'tb' ? 'testnet' : currency === 'bcrt' ? 'regtest' : 'signet';
+
+  return {
+    ok: true,
+    hrp,
+    currency,
+    network,
+    amountDigits,
+    multiplier
+  };
+}
+
+export function looksLikeBolt11(invoice: string): { ok: true; hrp: string } | { ok: false; error: string } {
+  const dec = decodeBech32(invoice);
+  if (!dec.ok) return { ok: false, error: `bech32 decode failed: ${dec.error}` };
+
+  const hrpParsed = parseBolt11Hrp(dec.hrp);
+  if (!hrpParsed.ok) return hrpParsed;
 
   // Data part must be long enough to contain:
   // - 35-bit timestamp (7x 5-bit words)
@@ -67,5 +97,5 @@ export function looksLikeBolt11(invoice: string): { ok: true; hrp: string } | { 
     return { ok: false, error: `missing tagged fields (words=${dec.words.length})` };
   }
 
-  return { ok: true, hrp };
+  return { ok: true, hrp: hrpParsed.hrp };
 }

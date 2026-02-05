@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { looksLikeBolt11 } from '../src/index.js';
+import { looksLikeBolt11, parseBolt11Hrp } from '../src/index.js';
 import { bech32 } from 'bech32';
 
 const fixturesPath = path.join(process.cwd(), 'fixtures', 'bolt11.json');
@@ -21,6 +21,39 @@ test('fixtures: valid invoices are expected to pass looksLikeBolt11', () => {
     const r = looksLikeBolt11(item.invoice);
     assert.equal(r.ok, true, `expected valid: ${item.name} (${(r as any).error || ''})`);
   }
+});
+
+test('parseBolt11Hrp: extracts network + amount components', () => {
+  // From BOLT11 examples.
+  const a = parseBolt11Hrp('lnbc');
+  assert.deepEqual(a, {
+    ok: true,
+    hrp: 'lnbc',
+    currency: 'bc',
+    network: 'mainnet',
+    amountDigits: undefined,
+    multiplier: undefined
+  });
+
+  const b = parseBolt11Hrp('lntb20m');
+  assert.deepEqual(b, {
+    ok: true,
+    hrp: 'lntb20m',
+    currency: 'tb',
+    network: 'testnet',
+    amountDigits: '20',
+    multiplier: 'm'
+  });
+
+  const c = parseBolt11Hrp('lnbc2500u');
+  assert.deepEqual(c, {
+    ok: true,
+    hrp: 'lnbc2500u',
+    currency: 'bc',
+    network: 'mainnet',
+    amountDigits: '2500',
+    multiplier: 'u'
+  });
 });
 
 test('looksLikeBolt11: rejects bech32-encoded ln* strings that are too short', () => {
