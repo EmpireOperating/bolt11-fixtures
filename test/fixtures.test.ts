@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { looksLikeBolt11 } from '../src/index.js';
+import { bech32 } from 'bech32';
 
 const fixturesPath = path.join(process.cwd(), 'fixtures', 'bolt11.json');
 const fixtures = JSON.parse(fs.readFileSync(fixturesPath, 'utf8'));
@@ -15,12 +16,17 @@ test('fixtures: invalid invoices are rejected', () => {
   }
 });
 
-test('fixtures: valid invoices are currently expected to pass looksLikeBolt11', () => {
-  // NOTE: for now this is intentionally strict: the sample-mock-1 is NOT real bech32,
-  // so we expect it to FAIL. This test encodes the current expectation and will evolve
-  // as we add real BOLT11 vectors.
+test('fixtures: valid invoices are expected to pass looksLikeBolt11', () => {
   for (const item of fixtures.valid) {
     const r = looksLikeBolt11(item.invoice);
-    assert.equal(r.ok, false, `expected currently-failing mock to fail: ${item.name}`);
+    assert.equal(r.ok, true, `expected valid: ${item.name} (${(r as any).error || ''})`);
   }
+});
+
+test('looksLikeBolt11: rejects bech32-encoded ln* strings that are too short', () => {
+  // Generate a checksum-valid bech32 string with a lightning-ish HRP but too few data words.
+  const tooShort = bech32.encode('lnbc', [0, 1, 2, 3, 4, 5], 2000);
+  const r = looksLikeBolt11(tooShort);
+  assert.equal(r.ok, false);
+  assert.match((r as any).error, /too short/);
 });
