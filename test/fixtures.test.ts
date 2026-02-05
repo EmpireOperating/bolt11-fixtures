@@ -73,3 +73,34 @@ test('looksLikeBolt11: rejects invoices with no tagged fields (timestamp+sig onl
   assert.equal(r.ok, false);
   assert.match((r as any).error, /tagged fields/);
 });
+
+test("looksLikeBolt11: rejects invoices whose tagged fields are structurally invalid (len overruns)", () => {
+  // Timestamp (7) + tagged fields + sig (104).
+  // Tagged field header says len=10 words but we only provide 1.
+  const timestamp = new Array(7).fill(0);
+  const tagType = 1; // 'p' in bech32 alphabet.
+  const len = 10;
+  const tagHeader = [tagType, (len >> 5) & 31, len & 31];
+  const tagData = [0];
+  const sig = new Array(104).fill(0);
+
+  const synthetic = bech32.encode('lnbc', [...timestamp, ...tagHeader, ...tagData, ...sig], 2000);
+  const r = looksLikeBolt11(synthetic);
+  assert.equal(r.ok, false);
+  assert.match((r as any).error, /overruns|truncated/i);
+});
+
+test("looksLikeBolt11: rejects invoices missing required 'p' (payment_hash) tag", () => {
+  // Build a structurally-valid tagged field section, but with tag type 'd' instead of 'p'.
+  const timestamp = new Array(7).fill(0);
+  const tagType = 13; // 'd' in bech32 alphabet.
+  const len = 1;
+  const tagHeader = [tagType, (len >> 5) & 31, len & 31];
+  const tagData = [0];
+  const sig = new Array(104).fill(0);
+
+  const synthetic = bech32.encode('lnbc', [...timestamp, ...tagHeader, ...tagData, ...sig], 2000);
+  const r = looksLikeBolt11(synthetic);
+  assert.equal(r.ok, false);
+  assert.match((r as any).error, /missing required.*'p'/i);
+});

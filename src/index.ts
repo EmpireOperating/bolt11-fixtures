@@ -92,10 +92,54 @@ export function looksLikeBolt11(invoice: string): { ok: true; hrp: string } | { 
   // There should be at least *some* tagged field data between the timestamp and the signature.
   // In practice, real invoices always include required tags (e.g., payment_hash), so this is a safe
   // extra sanity check to reject synthetic ln* bech32 strings that only have a timestamp+sig.
-  const tagWords = dec.words.length - 7 - 104;
-  if (tagWords <= 0) {
+  const tagSectionLen = dec.words.length - 7 - 104;
+  if (tagSectionLen <= 0) {
     return { ok: false, error: `missing tagged fields (words=${dec.words.length})` };
   }
 
+  // Minimal validation that the tagged field section is structurally sound (type + length + data).
+  // This is still not a full BOLT11 decoder, but it catches a surprising number of "looks like bech32" fakes.
+  const tagWords = dec.words.slice(7, dec.words.length - 104);
+  const parsed = parseBolt11TaggedFields(tagWords);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+
+  // Per BOLT11, invoices MUST include a payment_hash ('p') field.
+  if (!parsed.tags.includes('p')) {
+    return { ok: false, error: `missing required tagged field 'p' (payment_hash)` };
+  }
+
   return { ok: true, hrp: hrpParsed.hrp };
+}
+
+const BECH32_ALPHABET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+
+function parseBolt11TaggedFields(words: number[]): { ok: true; tags: string[] } | { ok: false; error: string } {
+  // Tagged field grammar (words are 5-bit values):
+  //   type (1 word)
+  //   data_length (2 words, 10-bit big-endian, length in words)
+  //   data (data_length words)
+  const tags: string[] = [];
+
+  let i = 0;
+  while (i < words.length) {
+    if (i + 3 > words.length) {
+      return { ok: false, error: `truncated tagged field header (i=${i}, words=${words.length})` };
+    }
+
+    const t = words[i] ?? 0;
+    const tChar = BECH32_ALPHABET[t] ?? '?';
+
+    const len = ((words[i + 1] ?? 0) << 5) | (words[i + 2] ?? 0);
+    i += 3;
+
+    if (len < 0) return { ok: false, error: `invalid tagged field length (len=${len})` };
+    if (i + len > words.length) {
+      return { ok: false, error: `tagged field overruns section (type=${tChar}, len=${len}, i=${i}, words=${words.length})` };
+    }
+
+    tags.push(tChar);
+    i += len;
+  }
+
+  return { ok: true, tags };
 }
