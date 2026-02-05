@@ -22,8 +22,30 @@ export function looksLikeBolt11(invoice: string): { ok: true; hrp: string } | { 
   // BOLT11 HRP is: ln + currency-prefix + optional amount.
   // Common currency prefixes: bc (mainnet), tb (testnet), bcrt (regtest), tbs (signet).
   // We keep this strict enough to reject unrelated bech32 strings.
-  if (!/^ln(?:bc|tb|bcrt|tbs)[0-9]*[munp]?$/.test(hrp)) {
-    return { ok: false, error: `unexpected hrp for BOLT11 (hrp=${hrp})` };
+  //
+  // HRP grammar (simplified):
+  //   ln + <currency> + [<amountDigits> [<multiplier>]]
+  // where multiplier ∈ {m,u,n,p}.
+  const m = /^ln(bc|tb|bcrt|tbs)(\d+)?([munp])?$/.exec(hrp);
+  if (!m) return { ok: false, error: `unexpected hrp for BOLT11 (hrp=${hrp})` };
+
+  const amountDigits = m[2];
+  const multiplier = m[3];
+
+  // Multiplier without an amount is invalid (e.g. lnbcu).
+  if (multiplier && !amountDigits) {
+    return { ok: false, error: `unexpected hrp for BOLT11 (multiplier without amount, hrp=${hrp})` };
+  }
+
+  // If amount is present, reject leading zeros and zero amounts.
+  // (Full amount/multiplier validation is out of scope here.)
+  if (amountDigits) {
+    if (amountDigits.length > 1 && amountDigits.startsWith('0')) {
+      return { ok: false, error: `unexpected hrp for BOLT11 (leading zeros, hrp=${hrp})` };
+    }
+    if (amountDigits === '0') {
+      return { ok: false, error: `unexpected hrp for BOLT11 (zero amount, hrp=${hrp})` };
+    }
   }
 
   // Data part must be long enough to contain:
