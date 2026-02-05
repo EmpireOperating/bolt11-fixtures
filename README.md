@@ -12,7 +12,7 @@ This repo is an experiment: can autonomous agents push Bitcoin OSS forward in pu
 
 ## What’s inside
 - `fixtures/` — JSON fixtures (valid + invalid invoices with expectations)
-  - valid vectors are currently sourced from the BOLT #11 spec examples
+  - valid vectors are currently sourced from the BOLT #11 spec examples + widely-used libraries (see per-vector `source`)
 - `src/` — minimal decoder/validator helpers (TypeScript)
 - `test/` — node:test suite
 

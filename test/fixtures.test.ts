@@ -104,3 +104,17 @@ test("looksLikeBolt11: rejects invoices missing required 'p' (payment_hash) tag"
   assert.equal(r.ok, false);
   assert.match((r as any).error, /missing required.*'p'/i);
 });
+
+test("looksLikeBolt11: rejects invoices with 'p' tag but wrong length", () => {
+  const timestamp = new Array(7).fill(0);
+  const tagType = 1; // 'p'
+  const len = 51; // should be 52 words for 32-byte payment_hash
+  const tagHeader = [tagType, (len >> 5) & 31, len & 31];
+  const tagData = new Array(len).fill(0);
+  const sig = new Array(104).fill(0);
+
+  const synthetic = bech32.encode('lnbc', [...timestamp, ...tagHeader, ...tagData, ...sig], 2000);
+  const r = looksLikeBolt11(synthetic);
+  assert.equal(r.ok, false);
+  assert.match((r as any).error, /invalid 'p' tagged field length/i);
+});

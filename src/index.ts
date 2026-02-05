@@ -104,8 +104,16 @@ export function looksLikeBolt11(invoice: string): { ok: true; hrp: string } | { 
   if (!parsed.ok) return { ok: false, error: parsed.error };
 
   // Per BOLT11, invoices MUST include a payment_hash ('p') field.
-  if (!parsed.tags.includes('p')) {
+  const paymentHashTags = parsed.tags.filter((t) => t.type === 'p');
+  if (paymentHashTags.length === 0) {
     return { ok: false, error: `missing required tagged field 'p' (payment_hash)` };
+  }
+
+  // 'p' is 256-bit payment_hash; encoded as 52x 5-bit words.
+  // (This is a lightweight sanity check; not a full BOLT11 decoder.)
+  if (!paymentHashTags.some((t) => t.len === 52)) {
+    const lens = paymentHashTags.map((t) => t.len).join(',');
+    return { ok: false, error: `invalid 'p' tagged field length (expected 52 words, got ${lens || 'none'})` };
   }
 
   return { ok: true, hrp: hrpParsed.hrp };
@@ -113,12 +121,14 @@ export function looksLikeBolt11(invoice: string): { ok: true; hrp: string } | { 
 
 const BECH32_ALPHABET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
 
-function parseBolt11TaggedFields(words: number[]): { ok: true; tags: string[] } | { ok: false; error: string } {
+function parseBolt11TaggedFields(
+  words: number[]
+): { ok: true; tags: Array<{ type: string; len: number }> } | { ok: false; error: string } {
   // Tagged field grammar (words are 5-bit values):
   //   type (1 word)
   //   data_length (2 words, 10-bit big-endian, length in words)
   //   data (data_length words)
-  const tags: string[] = [];
+  const tags: Array<{ type: string; len: number }> = [];
 
   let i = 0;
   while (i < words.length) {
@@ -137,7 +147,7 @@ function parseBolt11TaggedFields(words: number[]): { ok: true; tags: string[] } 
       return { ok: false, error: `tagged field overruns section (type=${tChar}, len=${len}, i=${i}, words=${words.length})` };
     }
 
-    tags.push(tChar);
+    tags.push({ type: tChar, len });
     i += len;
   }
 
