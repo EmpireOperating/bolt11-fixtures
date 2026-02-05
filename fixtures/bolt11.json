@@ -1,0 +1,21 @@
+{
+  "valid": [
+    {
+      "name": "sample-mock-1",
+      "invoice": "lnbc1mockinvoice",
+      "note": "Not a real invoice; used to ensure the harness flags invalid bech32."
+    }
+  ],
+  "invalid": [
+    {
+      "name": "not-bech32",
+      "invoice": "not-an-invoice",
+      "reason": "not bech32"
+    },
+    {
+      "name": "wrong-prefix",
+      "invoice": "bc1p5cyxnuxmeuwuvkwfem96llyxf8e0gk8k2n4t7h5q0k9x5k0l7xss7j2y0k",
+      "reason": "bech32 but not a lightning invoice (no ln* hrp)"
+    }
+  ]
+}
